@@ -60,6 +60,7 @@ public final class AES_Cipher extends CipherSpi {
 	private byte[] dataBuffer = null;
 	private int dataBufferActiveLength = 0;
 	private State state = null;
+	private int paddingScheme = 0; //0=NoPadding, 1=ISO9797m1, 2=ISO9797, 5=PKCS5
 	
 	/**
      * Creates an instance of WBAES with ECB mode.
@@ -68,6 +69,57 @@ public final class AES_Cipher extends CipherSpi {
         generator = new Generator();
         dataBuffer = new byte[State.BYTES];
     }
+    
+    
+	private void addPadding(byte[] data, int dataOffset, int dataLength) {
+		int blockSize = engineGetBlockSize();
+		
+		if(paddingScheme == 1) {
+			data[dataOffset] = (byte) 0x80;
+			dataOffset++;
+			dataLength++;
+
+			if(dataLength > blockSize)
+				dataLength = dataLength - blockSize;
+		}
+		
+		if(paddingScheme == 1 || paddingScheme == 2) {
+			while(dataLength < blockSize) {
+				data[dataOffset] = (byte) 0x00;
+				dataOffset++;
+				dataLength++;
+			}
+		}
+		
+		if(dataLength == blockSize) dataLength = 0;
+		
+		if(paddingScheme == 5) {
+			byte missingBytesNum = (byte)(blockSize - dataLength); //spravna operace?
+			for(int iter = dataOffset; iter<data.length; iter++) {
+				data[iter] = missingBytesNum;
+				System.out.println("PADDING 5 - " + iter + ", data - " + data[iter]); //zrusit, len pokus
+			}
+		}
+	}
+	
+	private int paddingCount(byte[] data) throws BadPaddingException {
+	
+	    int count = data.length - 1; //?
+
+	    if(paddingScheme == 1 || paddingScheme == 2)
+		    while (count > 0 && data[count] == 0) count--;
+	
+		if (data[count] != (byte)0x80 && paddingScheme == 2)
+			throw new BadPaddingException("Wrong padding - block corrupted");
+		
+		if(paddingScheme == 1)
+			count++;
+
+	    if(paddingScheme == 5)
+	    	return data[count];
+	    
+	    return data.length - count; //co to spravi u m1 a m2?
+	}
 	
 	
     /**
@@ -150,33 +202,46 @@ public final class AES_Cipher extends CipherSpi {
 		//zrusit?
 		if(coreAES == null) 
 			throw new IllegalBlockSizeException("Not shortBuffer - Calling doFinal(), but not initialized !"); //doFinal v Cipher to vyzera ze kontroluje
-					
+
+		int blockSize = engineGetBlockSize();
 		int length = dataBufferActiveLength + inputLen;
 				
 		// check for "nothing to be done"
 		if(length == 0)
 			return 0;
-
-		// input size checking
-		int blockSize = engineGetBlockSize();
-		if(length % blockSize != 0)
-			throw new BadPaddingException("No padding implemented, input length n*blockSize expected");
-				
-		// output size checking
-		if ((output == null) || ((output.length - outputOffset) < length)) {
+			
+		if(length % blockSize != 0 && paddingScheme == 0)
+			throw new BadPaddingException("No padding used, input length n*blockSize expected");
+			
+		int outputSize = engineGetOutputSize(length);
+		System.out.println(".........................................output size = " + outputSize);
+		
+		// output size checking -- kvoli paddingu asi zuzit
+		if ((output == null) || ((output.length - outputOffset) < outputSize)) {
 			throw new ShortBufferException("Short output buffer - " + length + " bytes needed");
 		}
 				
-		byte[] dataBufferWithInput = new byte[length];
+		byte[] dataBufferWithInput = new byte[outputSize];
 		System.arraycopy(dataBuffer, 0, dataBufferWithInput, 0, dataBufferActiveLength);
 		System.arraycopy(input, inputOffset, dataBufferWithInput, dataBufferActiveLength, inputLen);
-				
+		
+		int lastBlockSize = length % blockSize;
+		if(lastBlockSize == 0 && length > 0 && (paddingScheme == 2 || paddingScheme == 5))
+			lastBlockSize = blockSize;
+		int lastBlockOffset = length - lastBlockSize;
+		//int blocksNumber = lastBlockOffset / blockSize;
+		
+		if(isEncrypting && paddingScheme != 0) {
+			addPadding(dataBufferWithInput, lastBlockOffset, lastBlockSize);
+		}
+
+		// prepisat outputLength s length a i - abo asi radsi nechat, ale s while
 		int outputLength = 0;
-		for(int i = 0; i < length; i += blockSize) {
+		for(int i = 0; i < outputSize; i += blockSize) {
 			byte[] processingBlock = new byte[blockSize];
 			System.arraycopy(dataBufferWithInput, i, processingBlock, 0, blockSize);
 					
-			state  = new State(processingBlock, true,  false);
+			state = new State(processingBlock, true,  false);
 			state.transpose();
 		    generator.applyExternalEnc(state, extb, true); //?
 		    coreAES.crypt(state);
@@ -185,10 +250,15 @@ public final class AES_Cipher extends CipherSpi {
 		    System.arraycopy(state.getState(), 0, output, outputOffset + outputLength, blockSize);
 			outputLength += blockSize;
 		}
+		
+		if(!isEncrypting && paddingScheme != 0) {
+			int paddingLength = paddingCount(output);
+			return outputLength - paddingLength;
+		}
 				
 		return outputLength;
 	}
-
+	
     /**
      * Returns the block size (in bytes).
      *
@@ -229,9 +299,13 @@ public final class AES_Cipher extends CipherSpi {
      * @return the required output buffer size (in bytes)
      */
 	protected int engineGetOutputSize(int inputLen) {
+		int size = dataBufferActiveLength + inputLen; //ak sa nebude pridavat padding, rovno hodit do return
+
+		int blockSize = engineGetBlockSize();
+		int blocksNumber = (size + blockSize - 1) / blockSize;
+		if(isEncrypting && (size % blockSize == 0) && (paddingScheme == 2 || paddingScheme == 5)) blocksNumber++;
 		// when decrypting - return sumLen, when encrypting only without padding
-		int outputSize = dataBufferActiveLength + inputLen; //ak sa nebude pridavat padding, rovno hodit do return
-		return outputSize;
+		return blocksNumber * blockSize;
 	}
 
     /**
@@ -413,9 +487,13 @@ public final class AES_Cipher extends CipherSpi {
      */
 	// state sa pri vytvarani orezava/predlzuje (ak je copy true) na 16*8 bits
 	protected void engineSetPadding(String padding) throws NoSuchPaddingException {
-		if(padding != null) //zatim, chcelo by to nejaky pridat
-			throw new NoSuchPaddingException("No padding???");
-		// TODO add padding?
+		if(padding == null)
+			throw new NoSuchPaddingException("Padding is null"); // urcite treba vynimku? tuto asi ne
+		else if(padding.equalsIgnoreCase("NoPadding")) paddingScheme = 0;
+		else if(padding.equalsIgnoreCase("ISO9797M1Padding")) paddingScheme = 1;
+		else if(padding.equalsIgnoreCase("ISO9797M2Padding")) paddingScheme = 2;
+		else if(padding.equalsIgnoreCase("PKCS5Padding")) paddingScheme = 5;
+		else throw new NoSuchPaddingException(padding + " is not supported");
 	}
 
     /**
@@ -506,11 +584,27 @@ public final class AES_Cipher extends CipherSpi {
             
             System.arraycopy(state.getState(), 0, output, outputOffset + outputLength, blockSize);
 			outputLength += blockSize;
+			outputOffset += blockSize; //???
 		}
 		
-		System.arraycopy(dataBufferWithInput, processingDataLength, dataBuffer, 0, length - processingDataLength);
+		dataBufferActiveLength = length % blockSize;
+		System.arraycopy(dataBufferWithInput, processingDataLength, dataBuffer, 0, dataBufferActiveLength);
 		
 		return outputLength;
+	}
+	
+    /**
+     *  Returns the key size of the given key object.
+     *
+     * @param key the key object.
+     *
+     * @return the key size of the given key object.
+     *
+     * @exception InvalidKeyException if <code>key</code> is invalid.
+     */
+	// use only in secure environment?
+	protected int engineGetKeySize(Key key) throws InvalidKeyException{
+		return getKey(key).length;
 	}
 
 }
