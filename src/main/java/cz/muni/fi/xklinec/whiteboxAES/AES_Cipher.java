@@ -57,7 +57,7 @@ public final class AES_Cipher extends CipherSpi {
 	private boolean isEncrypting = true;
 	private ExternalBijections extb = null;
 	private AES coreAES = null;
-	private byte[] dataBuffer = null;
+	private byte[] dataBuffer;
 	private int dataBufferActiveLength = 0;
 	private State state = null;
 	private int paddingScheme = 0; //0=NoPadding, 1=ISO9797m1, 2=ISO9797, 5=PKCS5
@@ -74,7 +74,7 @@ public final class AES_Cipher extends CipherSpi {
 	private void addPadding(byte[] data, int dataOffset, int dataLength) {
 		int blockSize = engineGetBlockSize();
 		
-		if(paddingScheme == 1) {
+		if(paddingScheme == 2) {
 			data[dataOffset] = (byte) 0x80;
 			dataOffset++;
 			dataLength++;
@@ -97,7 +97,6 @@ public final class AES_Cipher extends CipherSpi {
 			byte missingBytesNum = (byte)(blockSize - dataLength); //spravna operace?
 			for(int iter = dataOffset; iter<data.length; iter++) {
 				data[iter] = missingBytesNum;
-				System.out.println("PADDING 5 - " + iter + ", data - " + data[iter]); //zrusit, len pokus
 			}
 		}
 	}
@@ -213,10 +212,9 @@ public final class AES_Cipher extends CipherSpi {
 		if(length % blockSize != 0 && paddingScheme == 0)
 			throw new BadPaddingException("No padding used, input length n*blockSize expected");
 			
-		int outputSize = engineGetOutputSize(length);
-		System.out.println(".........................................output size = " + outputSize);
+		int outputSize = engineGetOutputSize(inputLen);
 		
-		// output size checking -- kvoli paddingu asi zuzit
+		// output size checking
 		if ((output == null) || ((output.length - outputOffset) < outputSize)) {
 			throw new ShortBufferException("Short output buffer - " + length + " bytes needed");
 		}
@@ -226,13 +224,13 @@ public final class AES_Cipher extends CipherSpi {
 		System.arraycopy(input, inputOffset, dataBufferWithInput, dataBufferActiveLength, inputLen);
 		
 		int lastBlockSize = length % blockSize;
-		if(lastBlockSize == 0 && length > 0 && (paddingScheme == 2 || paddingScheme == 5))
+		if(lastBlockSize == 0 && length > 0 && paddingScheme != 0)
 			lastBlockSize = blockSize;
 		int lastBlockOffset = length - lastBlockSize;
 		//int blocksNumber = lastBlockOffset / blockSize;
-		
+
 		if(isEncrypting && paddingScheme != 0) {
-			addPadding(dataBufferWithInput, lastBlockOffset, lastBlockSize);
+			addPadding(dataBufferWithInput, length, lastBlockSize);
 		}
 
 		// prepisat outputLength s length a i - abo asi radsi nechat, ale s while
@@ -255,7 +253,7 @@ public final class AES_Cipher extends CipherSpi {
 			int paddingLength = paddingCount(output);
 			return outputLength - paddingLength;
 		}
-				
+		
 		return outputLength;
 	}
 	
