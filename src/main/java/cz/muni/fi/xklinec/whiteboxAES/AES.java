@@ -29,14 +29,17 @@
 package cz.muni.fi.xklinec.whiteboxAES;
 
 import java.util.Arrays;
+import java.io.Serializable;
 
 /**
  * Main AES whitebox table implementation.
  * 
  * @author ph4r05
  */
-public class AES {
-    public static final int BYTES  = State.BYTES;
+public class AES implements Serializable {
+
+	private static final long serialVersionUID = 1L; // added serialization
+	public static final int BYTES  = State.BYTES;
     public static final int ROUNDS = 10;
     public static final int T1BOXES = 2;
     public static final int T1Boxes = 2;
@@ -53,7 +56,7 @@ public class AES {
        10, 11,  8,  9,
        13, 14, 15, 12
     };
-    
+        
     protected T1Box[][]         t1       = new T1Box[T1BOXES][State.BYTES];
     protected XORCascadeState[] xorState = new XORCascadeState[T1BOXES];
     protected T2Box[][]         t2       = new T2Box[ROUNDS][State.BYTES];

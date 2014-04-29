@@ -27,6 +27,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 package cz.muni.fi.xklinec.whiteboxAES.generator;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.security.SecureRandom;
 import org.bouncycastle.pqc.math.linearalgebra.GF2Vector;
 import org.bouncycastle.pqc.math.linearalgebra.IntUtils;
@@ -40,9 +43,13 @@ import org.bouncycastle.pqc.math.linearalgebra.Vector;
  * and is used in ecc and MQ-PKC (also has some specific methods and
  * implementation)
  */
-public class GF2MatrixEx extends Matrix
+public class GF2MatrixEx extends Matrix implements java.io.Serializable
 {
-    public final static int BLOCKEXP = 5;             // 2^BLOCKEXP = size of one storage block
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 10002L;
+	public final static int BLOCKEXP = 5;             // 2^BLOCKEXP = size of one storage block
     public final static int INTSIZE  = 1 << BLOCKEXP; // size of one storage block
     public final static int INTMASK  = INTSIZE - 1;   // masking to get remainder after DIV INTSIZE 
     
@@ -1725,4 +1732,26 @@ public class GF2MatrixEx extends Matrix
            }
        }
    }
+   
+   private void writeObject(ObjectOutputStream os) throws IOException, ClassNotFoundException  
+   {   
+    try {  
+     os.defaultWriteObject();  
+     os.writeInt(numColumns);  
+     os.writeInt(numRows);
+    }   
+    catch (Exception e)   
+    { e.printStackTrace(); }  
+   }  
+     
+   private void readObject(ObjectInputStream is) throws IOException, ClassNotFoundException  
+   {  
+    try {  
+     is.defaultReadObject();  
+     numColumns = is.readInt();  
+     numRows = is.readInt();    
+    } catch (Exception e) { e.printStackTrace(); }  
+   }  
+   
+   
 }

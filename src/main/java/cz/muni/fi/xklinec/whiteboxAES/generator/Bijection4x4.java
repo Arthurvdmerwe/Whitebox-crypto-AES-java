@@ -33,8 +33,12 @@ package cz.muni.fi.xklinec.whiteboxAES.generator;
  * 
  * @author ph4r05
  */
-public class Bijection4x4 {
-    public byte coding[];
+public class Bijection4x4 implements java.io.Serializable{
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 100L;
+	public byte coding[];
     public byte invCoding[];
 
     public Bijection4x4() {

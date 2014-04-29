@@ -28,6 +28,11 @@
 */
 package cz.muni.fi.xklinec.whiteboxAES;
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -57,7 +62,7 @@ public final class AES_Cipher extends CipherSpi {
 	private boolean isEncrypting = true;
 	private ExternalBijections extb = null;
 	private AES coreAES = null;
-	private byte[] dataBuffer;
+	private byte[] dataBuffer = null;
 	private int dataBufferActiveLength = 0;
 	private State state = null;
 	private int paddingScheme = 0; //0=NoPadding, 1=ISO9797m1, 2=ISO9797, 5=PKCS5
@@ -70,7 +75,9 @@ public final class AES_Cipher extends CipherSpi {
         dataBuffer = new byte[State.BYTES];
     }
     
-    
+    /*
+     * Adds padding to the block of data
+     */
 	private void addPadding(byte[] data, int dataOffset, int dataLength) {
 		int blockSize = engineGetBlockSize();
 		
@@ -101,6 +108,9 @@ public final class AES_Cipher extends CipherSpi {
 		}
 	}
 	
+	/*
+	 * Counts length od padding to be able to remove it
+	 */
 	private int paddingCount(byte[] data) throws BadPaddingException {
 	
 	    int count = data.length - 1; //?
@@ -117,7 +127,7 @@ public final class AES_Cipher extends CipherSpi {
 	    if(paddingScheme == 5)
 	    	return data[count];
 	    
-	    return data.length - count; //co to spravi u m1 a m2?
+	    return data.length - count;
 	}
 	
 	
@@ -198,9 +208,6 @@ public final class AES_Cipher extends CipherSpi {
      */
 	protected int engineDoFinal(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
 			throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
-		//zrusit?
-		if(coreAES == null) 
-			throw new IllegalBlockSizeException("Not shortBuffer - Calling doFinal(), but not initialized !"); //doFinal v Cipher to vyzera ze kontroluje
 
 		int blockSize = engineGetBlockSize();
 		int length = dataBufferActiveLength + inputLen;
@@ -226,7 +233,7 @@ public final class AES_Cipher extends CipherSpi {
 		int lastBlockSize = length % blockSize;
 		if(lastBlockSize == 0 && length > 0 && paddingScheme != 0)
 			lastBlockSize = blockSize;
-		int lastBlockOffset = length - lastBlockSize;
+		//int lastBlockOffset = length - lastBlockSize;
 		//int blocksNumber = lastBlockOffset / blockSize;
 
 		if(isEncrypting && paddingScheme != 0) {
@@ -241,9 +248,9 @@ public final class AES_Cipher extends CipherSpi {
 					
 			state = new State(processingBlock, true,  false);
 			state.transpose();
-		    generator.applyExternalEnc(state, extb, true); //?
+		    generator.applyExternalEnc(state, extb, true);
 		    coreAES.crypt(state);
-		    generator.applyExternalEnc(state, extb, false); //?
+		    generator.applyExternalEnc(state, extb, false);
 		            
 		    System.arraycopy(state.getState(), 0, output, outputOffset + outputLength, blockSize);
 			outputLength += blockSize;
@@ -320,10 +327,12 @@ public final class AES_Cipher extends CipherSpi {
      * does not use any parameters.
      */
 	protected AlgorithmParameters engineGetParameters() {
-		return null; //the only parameter for EAS would be IV, but not in this implementation
+		return null; //the only parameter for EAS would be IV, but not in this implementation (ECB mode)
 	}
 	
-	// private method for Key to byte array conversion
+	/*
+	 * converts Key to byte array
+	 */
     private byte[] getKey(Key key) throws InvalidKeyException {
         if (key == null) {
             throw new InvalidKeyException("No key data");
@@ -374,7 +383,7 @@ public final class AES_Cipher extends CipherSpi {
         try {
     		this.engineInit(opmode, key, (AlgorithmParameterSpec)null, random);
 	    } catch (InvalidAlgorithmParameterException e) {
-	            throw new InvalidKeyException(e.getMessage());
+	        throw new InvalidKeyException(e.getMessage());
 	    }
 	}
 
@@ -407,27 +416,64 @@ public final class AES_Cipher extends CipherSpi {
 		
 		if(params != null)
 			throw new InvalidAlgorithmParameterException("Current impelmentation doesn't support AlgorithmParameter");
-		
-    	byte[] keyBytes = getKey(key);
-    	
-    	if(random != null)
-    		generator.setRand(random);
-    		
-    	extb = new ExternalBijections();
-        generator.generateExtEncoding(extb, 0);
-        
-        // all protections are enabled (transformations are not identities)
-        generator.setUseIO04x04Identity(false);
-        generator.setUseIO08x08Identity(false);
-        generator.setUseMB08x08Identity(false);
-        generator.setUseMB32x32Identity(false);
-        
+
         isEncrypting = (opmode == Cipher.ENCRYPT_MODE);
-        
-        try {
-        	generator.generate(isEncrypting, keyBytes, keyBytes.length, extb);
-        } catch (ArrayIndexOutOfBoundsException e) {throw new InvalidKeyException("Wrong key length");}
-        coreAES = generator.getAESi();
+		
+		if(key == null) {
+			
+			try {
+		        FileInputStream fileIn = new FileInputStream("extb_tables.ser");
+		        ObjectInputStream in = new ObjectInputStream(fileIn);
+		        extb = (ExternalBijections) in.readObject();
+		        coreAES = (AES) in.readObject();
+		        in.close();
+		        fileIn.close();
+		        System.out.println("Serialized data read successfully");
+			} catch(IOException i) {
+		        //i.printStackTrace();
+				throw new InvalidKeyException(i.getMessage());
+		    } catch(ClassNotFoundException c) {
+		        System.out.println("ExternalBijections class (bijections) not found");
+		        c.printStackTrace();
+		        return;
+		    }
+			
+		}
+		else {
+		
+	    	byte[] keyBytes = getKey(key);
+	    	
+	    	if(random != null)
+	    		generator.setRand(random);
+	    		
+	    	extb = new ExternalBijections();
+	        generator.generateExtEncoding(extb, 0);
+	        
+	        // all protections are enabled (transformations are not identities)
+	        generator.setUseIO04x04Identity(false);
+	        generator.setUseIO08x08Identity(false);
+	        generator.setUseMB08x08Identity(false);
+	        generator.setUseMB32x32Identity(false);
+	        
+	        try {
+	        	generator.generate(isEncrypting, keyBytes, keyBytes.length, extb);
+	        } catch (ArrayIndexOutOfBoundsException e) {throw new InvalidKeyException("Wrong key length");}
+	        coreAES = generator.getAESi();
+	        
+	        try {
+	        	FileOutputStream fileOut = new FileOutputStream("extb_tables.ser");
+	            ObjectOutputStream out = new ObjectOutputStream(fileOut);
+	            out.writeObject(extb);
+	            out.writeObject(coreAES);
+	            out.flush();
+	            out.close();
+	            fileOut.close();
+	            System.out.println("Serialized data is saved in extb_tables.ser");
+	        } catch(IOException i) {
+	            i.printStackTrace();
+	        }
+	        
+		}
 	}
 
     /**
@@ -548,10 +594,7 @@ public final class AES_Cipher extends CipherSpi {
      */
 	protected int engineUpdate(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
 			throws ShortBufferException {
-		
-		//zrusit?
-		if(coreAES == null) System.out.println(" ! Calling update(), but not initialized !");
-			
+					
 		int length = dataBufferActiveLength + inputLen;
 		
 		// check for "nothing to be done"

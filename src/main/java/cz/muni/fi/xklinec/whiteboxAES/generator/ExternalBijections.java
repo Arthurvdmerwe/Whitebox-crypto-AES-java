@@ -33,9 +33,13 @@ package cz.muni.fi.xklinec.whiteboxAES.generator;
  * 
  * @author ph4r05
  */
-public class ExternalBijections {
-    private Bijection4x4[][] lfC   = new Bijection4x4[2][2*AESCodingMap.BYTES]; // needs to be initialized on demand...
-    private LinearBijection IODM[] = new LinearBijection[2];
+public class ExternalBijections implements java.io.Serializable{
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 3L;
+	private Bijection4x4[][] lfC   = new Bijection4x4[2][2*AESCodingMap.BYTES]; // needs to be initialized on demand...
+	private LinearBijection IODM[] = new LinearBijection[2];
     
     /**
      * Allocate memory for mixing bijections

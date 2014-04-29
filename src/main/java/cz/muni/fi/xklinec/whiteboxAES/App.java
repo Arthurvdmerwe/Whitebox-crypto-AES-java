@@ -57,5 +57,6 @@ public class App
         
         System.out.println("MatrixEncLen: [" + m.getEncoded().length + "]");
         System.out.println("MatrixEncHex: [" + IntUtils.toHexString(m.getRow(0)) + "]");
+        
     }
 }

@@ -35,8 +35,12 @@ package cz.muni.fi.xklinec.whiteboxAES.generator;
  * 
  * @author ph4r05
  */
-public class LinearBijection {
-    private GF2MatrixEx mb;
+public class LinearBijection implements java.io.Serializable{
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 101L;
+	private GF2MatrixEx mb;
     private GF2MatrixEx inv;
 
     public GF2MatrixEx getMb() {
