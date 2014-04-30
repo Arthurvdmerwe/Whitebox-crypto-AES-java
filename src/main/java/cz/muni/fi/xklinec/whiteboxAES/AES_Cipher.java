@@ -422,7 +422,7 @@ public final class AES_Cipher extends CipherSpi {
 		if(key == null) {
 			
 			try {
-		        FileInputStream fileIn = new FileInputStream("extb_tables.ser");
+		        FileInputStream fileIn = new FileInputStream("extb_tables_" + isEncrypting + ".ser");
 		        ObjectInputStream in = new ObjectInputStream(fileIn);
 		        extb = (ExternalBijections) in.readObject();
 		        coreAES = (AES) in.readObject();
@@ -461,14 +461,14 @@ public final class AES_Cipher extends CipherSpi {
 	        coreAES = generator.getAESi();
 	        
 	        try {
-	        	FileOutputStream fileOut = new FileOutputStream("extb_tables.ser");
+	        	FileOutputStream fileOut = new FileOutputStream("extb_tables_" + isEncrypting + ".ser");
 	            ObjectOutputStream out = new ObjectOutputStream(fileOut);
 	            out.writeObject(extb);
 	            out.writeObject(coreAES);
 	            out.flush();
 	            out.close();
 	            fileOut.close();
-	            System.out.println("Serialized data is saved in extb_tables.ser");
+	            System.out.println("Serialized data is saved in extb_tables_" + isEncrypting + ".ser");
 	        } catch(IOException i) {
 	            i.printStackTrace();
 	        }

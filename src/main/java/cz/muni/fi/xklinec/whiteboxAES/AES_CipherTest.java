@@ -127,7 +127,6 @@ public class AES_CipherTest extends TestCase {
 				
 	}
 
-	
 	/**
 	 *  Test of API - Exceptions
 	 */
@@ -135,10 +134,6 @@ public class AES_CipherTest extends TestCase {
 		System.out.println("Exception test");
 		
 		AES_Cipher encryptor = new AES_Cipher();
-		try {
-			encryptor.engineInit(Cipher.ENCRYPT_MODE, null, null);
-			fail("engineInit()");
-		} catch (Exception e) {}
 		
 		byte[] outputEnc = new byte[16];
 		try {
@@ -147,10 +142,6 @@ public class AES_CipherTest extends TestCase {
 		} catch (Exception e) {}
 		
 		AES_Cipher decryptor = new AES_Cipher();
-		try {
-			decryptor.engineInit(Cipher.DECRYPT_MODE, null, null);
-			fail();
-		} catch (InvalidKeyException e) {}
 		
 		byte[] outputDec = new byte[16];
 		try {
@@ -159,52 +150,43 @@ public class AES_CipherTest extends TestCase {
 		} catch (Exception e) {}
 				
 	}
-	
+		
 	/**
-	 *  Serialization test - insecure (init) part
+	 *  Serialization test
 	 */
-	public void testSerializationInit() {
-		System.out.println("Serialization init test");
-
-        SecureRandom random = new SecureRandom();
+	public void testSerialization() {
+		System.out.println("Serialization test");
 		
-		Key key = new SecretKeySpec(AEShelper.testVect128_key, "WBAES");
-		
-		AES_Cipher encryptor = new AES_Cipher();
 		try {
+			SecureRandom random = new SecureRandom();
+		
+			Key key = new SecretKeySpec(AEShelper.testVect128_key, "WBAES");
+		
+			AES_Cipher encryptor = new AES_Cipher();
 			encryptor.engineInit(Cipher.ENCRYPT_MODE, key, random);
 		} catch (InvalidKeyException e) {}
-	}
-	
-	/**
-	 *  Serialization test - secure (doFinal) part
-	 */
-	public void testSerializationDoFinal() {
-		System.out.println("Serialization doFinal test");
 		
-        SecureRandom random = new SecureRandom();
-		
-		AES_Cipher encryptor = new AES_Cipher();
 		try {
+			SecureRandom random = new SecureRandom();
+		
+			AES_Cipher encryptor = new AES_Cipher();
+		
 			encryptor.engineInit(Cipher.ENCRYPT_MODE, null, random);
-		} catch (InvalidKeyException e) {}
 		
-		byte[] outputEnc = new byte[16];
-		try {
+			byte[] outputEnc = new byte[16];
 			outputEnc = encryptor.engineDoFinal(AEShelper.testVect128_plain[1], 0, 16);
-		} catch (Exception e) {}
 		
-        State cipher = new State(AEShelper.testVect128_cipher[1], true, false);
+			State cipher = new State(AEShelper.testVect128_cipher[1], true, false);
 		
-        System.out.println("Testvector ciphertext sour: \n"+ cipher);
+			System.out.println("Testvector ciphertext sour: \n"+ cipher);
 
-        State cipher2  = new State(outputEnc, true,  false);
+			State cipher2  = new State(outputEnc, true,  false);
         
-		System.out.println("Testvector plaintext comp: \n" + cipher2);
+			System.out.println("Testvector plaintext comp: \n" + cipher2);
 		
-        // problem with byte arrays comparison - used States
-        assertEquals("Cipher output mismatch in API", true, cipher2.equals(cipher));
-		
+			// problem with byte arrays comparison - used States
+			assertEquals("Cipher output mismatch in API", true, cipher2.equals(cipher));
+		} catch (Exception e) { fail("Serialization - exception thrown"); }
 	}
 	
 }
